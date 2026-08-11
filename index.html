@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>Our Photo Diary</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Supabase JS Library -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -33,6 +35,11 @@
     max-width: 1100px;
     margin: 0 auto;
   }
+  .photo-card {
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+  }
   .photo-card img {
     width: 100%;
     height: 300px;
@@ -46,6 +53,56 @@
     color: #555;
     text-align: center;
   }
+
+  /* Floating Plus Button */
+  .add-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    background-color: #222;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    font-size: 32px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Pop-up Box */
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-content {
+    background: #fff;
+    padding: 25px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .modal-content input, .modal-content textarea, .modal-content button {
+    padding: 10px;
+    font-size: 0.95rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  .modal-content button {
+    background: #222;
+    color: white;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -55,24 +112,90 @@
   <p>just us, moments worth keeping</p>
 </header>
 
-<div class="grid">
+<div class="grid" id="gallery"></div>
 
-  <div class="photo-card">
-    <img src="https://via.placeholder.com/600x400" alt="photo">
-    <p>Your caption here</p>
+<!-- Plus Button -->
+<button class="add-btn" id="openModalBtn">+</button>
+
+<!-- Pop-up Window -->
+<div class="modal" id="uploadModal">
+  <div class="modal-content">
+    <h3>Add a New Photo</h3>
+    <input type="file" id="photoInput" accept="image/*">
+    <textarea id="captionInput" placeholder="Your caption here..."></textarea>
+    <button id="uploadBtn">Upload Photo</button>
+    <button id="closeModalBtn" style="background:#eee; color:#333; border:none;">Cancel</button>
   </div>
-
-  <div class="photo-card">
-    <img src="https://via.placeholder.com/600x400" alt="photo">
-    <p>Your caption here</p>
-  </div>
-
-  <div class="photo-card">
-    <img src="https://via.placeholder.com/600x400" alt="photo">
-    <p>Your caption here</p>
-  </div>
-
 </div>
+
+<script>
+  // Your Supabase Address and Key
+  const SUPABASE_URL = 'https://tisnseogsgylrkphuufi.supabase.co';
+  const SUPABASE_KEY = 'YOUR_ACTUAL_ANON_KEY_HERE'; 
+
+  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const gallery = document.getElementById('gallery');
+  const openModalBtn = document.getElementById('openModalBtn');
+  const closeModalBtn = document.getElementById('closeModalBtn');
+  const uploadModal = document.getElementById('uploadModal');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  openModalBtn.onclick = () => uploadModal.style.display = 'flex';
+  closeModalBtn.onclick = () => uploadModal.style.display = 'none';
+
+  // Load photos onto page
+  async function loadPhotos() {
+    gallery.innerHTML = '';
+    const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+    
+    if (error) return console.error(error);
+
+    data.forEach(post => {
+      const card = document.createElement('div');
+      card.className = 'photo-card';
+      card.innerHTML = `
+        <img src="${post.image_url}" alt="photo">
+        <p>${post.caption || ''}</p>
+      `;
+      gallery.appendChild(card);
+    });
+  }
+
+  // Upload photo when clicked
+  uploadBtn.onclick = async () => {
+    const fileInput = document.getElementById('photoInput');
+    const captionInput = document.getElementById('captionInput');
+    const file = fileInput.files[0];
+
+    if (!file) return alert('Please pick a photo first!');
+
+    uploadBtn.innerText = 'Uploading...';
+    uploadBtn.disabled = true;
+
+    const fileName = `${Date.now()}_${file.name}`;
+    const { error: storageError } = await supabase.storage.from('photos').upload(fileName, file);
+
+    if (storageError) {
+      alert('Upload error: ' + storageError.message);
+      uploadBtn.innerText = 'Upload Photo';
+      uploadBtn.disabled = false;
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+    await supabase.from('posts').insert([{ image_url: urlData.publicUrl, caption: captionInput.value }]);
+
+    fileInput.value = '';
+    captionInput.value = '';
+    uploadModal.style.display = 'none';
+    uploadBtn.innerText = 'Upload Photo';
+    uploadBtn.disabled = false;
+    loadPhotos();
+  };
+
+  loadPhotos();
+</script>
 
 </body>
 </html>
