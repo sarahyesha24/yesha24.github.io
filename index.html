@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Our Photo Diary</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- Supabase JS Library -->
+<!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -71,9 +71,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 999;
   }
 
-  /* Pop-up Box */
+  /* Pop-up Window */
   .modal {
     display: none;
     position: fixed;
@@ -81,6 +82,7 @@
     background: rgba(0,0,0,0.4);
     align-items: center;
     justify-content: center;
+    z-index: 1000;
   }
   .modal-content {
     background: #fff;
@@ -129,11 +131,10 @@
 </div>
 
 <script>
-  // Your Supabase Address and Key
   const SUPABASE_URL = 'https://tisnseogsgylrkphuufi.supabase.co';
-  const SUPABASE_KEY = 'YOUR_ACTUAL_ANON_KEY_HERE'; 
+  const SUPABASE_KEY = 'sb_publishable_lWylD4rP_tpwiN6GSh3h-Q_WqJeUP0x';
 
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const gallery = document.getElementById('gallery');
   const openModalBtn = document.getElementById('openModalBtn');
@@ -144,12 +145,11 @@
   openModalBtn.onclick = () => uploadModal.style.display = 'flex';
   closeModalBtn.onclick = () => uploadModal.style.display = 'none';
 
-  // Load photos onto page
   async function loadPhotos() {
     gallery.innerHTML = '';
-    const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
     
-    if (error) return console.error(error);
+    if (error) return console.error('Error fetching photos:', error);
 
     data.forEach(post => {
       const card = document.createElement('div');
@@ -162,7 +162,6 @@
     });
   }
 
-  // Upload photo when clicked
   uploadBtn.onclick = async () => {
     const fileInput = document.getElementById('photoInput');
     const captionInput = document.getElementById('captionInput');
@@ -174,7 +173,7 @@
     uploadBtn.disabled = true;
 
     const fileName = `${Date.now()}_${file.name}`;
-    const { error: storageError } = await supabase.storage.from('photos').upload(fileName, file);
+    const { error: storageError } = await supabaseClient.storage.from('photos').upload(fileName, file);
 
     if (storageError) {
       alert('Upload error: ' + storageError.message);
@@ -183,8 +182,8 @@
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
-    await supabase.from('posts').insert([{ image_url: urlData.publicUrl, caption: captionInput.value }]);
+    const { data: urlData } = supabaseClient.storage.from('photos').getPublicUrl(fileName);
+    await supabaseClient.from('posts').insert([{ image_url: urlData.publicUrl, caption: captionInput.value }]);
 
     fileInput.value = '';
     captionInput.value = '';
