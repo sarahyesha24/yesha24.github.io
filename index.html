@@ -62,12 +62,26 @@
     word-break: break-word;
   }
 
-  /* Audio player inside card */
+  /* Audio & Video Player Styles */
   .card-audio {
     width: 100%;
     margin-top: 10px;
     height: 36px;
     border-radius: 18px;
+  }
+  .youtube-embed {
+    width: 100%;
+    height: 80px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+  }
+  .spotify-embed {
+    width: 100%;
+    height: 80px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 12px;
   }
 
   /* Delete Button on Card */
@@ -171,8 +185,8 @@
     <label for="photoInput">Select Photo *</label>
     <input type="file" id="photoInput" accept="image/*">
 
-    <label for="audioUrlInput">Audio URL from Internet (Optional)</label>
-    <input type="url" id="audioUrlInput" placeholder="https://example.com/song.mp3">
+    <label for="audioUrlInput">Spotify, YouTube, or MP3 Link (Optional)</label>
+    <input type="url" id="audioUrlInput" placeholder="Paste Spotify or YouTube link here...">
 
     <textarea id="captionInput" placeholder="Your caption here..."></textarea>
     
@@ -196,6 +210,24 @@
   openModalBtn.onclick = () => uploadModal.style.display = 'flex';
   closeModalBtn.onclick = () => uploadModal.style.display = 'none';
 
+  // Helper function to extract YouTube Video ID
+  function getYouTubeId(url) {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  }
+
+  // Helper function to extract Spotify Track / Album / Playlist path
+  function getSpotifyPath(url) {
+    if (!url) return null;
+    const match = url.match(/open\.spotify\.com\/(track|album|playlist|episode)\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+    return null;
+  }
+
   async function loadPhotos() {
     gallery.innerHTML = '';
     const { data, error } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
@@ -216,7 +248,19 @@
       
       let audioHTML = '';
       if (post.audio_url) {
-        audioHTML = `<audio controls class="card-audio" src="${post.audio_url}"></audio>`;
+        const ytId = getYouTubeId(post.audio_url);
+        const spotifyPath = getSpotifyPath(post.audio_url);
+
+        if (ytId) {
+          // Embed compact YouTube player
+          audioHTML = `<iframe class="youtube-embed" src="https://www.youtube.com/embed/${ytId}" allow="autoplay; encrypted-media"></iframe>`;
+        } else if (spotifyPath) {
+          // Embed compact Spotify player
+          audioHTML = `<iframe class="spotify-embed" src="https://open.spotify.com/embed/${spotifyPath}?utm_source=generator" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+        } else {
+          // Standard HTML5 audio player for MP3 links
+          audioHTML = `<audio controls class="card-audio" src="${post.audio_url}"></audio>`;
+        }
       }
 
       card.innerHTML = `
@@ -267,7 +311,7 @@
 
     const photoPublicUrl = `${SUPABASE_URL}/storage/v1/object/public/photos/${photoFileName}`;
 
-    // 2. Save Photo URL + External Audio URL to Database
+    // 2. Save Photo URL + Spotify / YouTube / Audio Link to Database
     const { error: dbError } = await supabaseClient.from('posts').insert([{ 
       image_url: photoPublicUrl, 
       audio_url: audioUrl || null,
