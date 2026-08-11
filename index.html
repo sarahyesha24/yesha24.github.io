@@ -46,6 +46,7 @@
     object-fit: cover;
     border-radius: 6px;
     display: block;
+    background: #f0f0f0;
   }
   .photo-card p {
     margin-top: 10px;
@@ -149,13 +150,21 @@
     gallery.innerHTML = '';
     const { data, error } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
     
-    if (error) return console.error('Error fetching photos:', error);
+    if (error) {
+      alert('Error fetching photos: ' + error.message);
+      return;
+    }
+
+    if (data.length === 0) {
+      gallery.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color:#aaa;">No photos uploaded yet! Click + to add one.</p>';
+      return;
+    }
 
     data.forEach(post => {
       const card = document.createElement('div');
       card.className = 'photo-card';
       card.innerHTML = `
-        <img src="${post.image_url}" alt="photo">
+        <img src="${post.image_url}" alt="photo" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400?text=Image+Loading+Error';">
         <p>${post.caption || ''}</p>
       `;
       gallery.appendChild(card);
@@ -172,8 +181,10 @@
     uploadBtn.innerText = 'Uploading...';
     uploadBtn.disabled = true;
 
-    const fileName = `${Date.now()}_${file.name}`;
-    const { error: storageError } = await supabaseClient.storage.from('photos').upload(fileName, file);
+    // Clean filename to remove weird characters
+    const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    
+    const { error: storageError } = await supabaseClient.storage.from('photos').upload(cleanFileName, file);
 
     if (storageError) {
       alert('Upload error: ' + storageError.message);
@@ -182,12 +193,20 @@
       return;
     }
 
-    const { data: urlData } = supabaseClient.storage.from('photos').getPublicUrl(fileName);
-    await supabaseClient.from('posts').insert([{ image_url: urlData.publicUrl, caption: captionInput.value }]);
+    // Get exact direct public URL
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/photos/${cleanFileName}`;
+    
+    const { error: dbError } = await supabaseClient.from('posts').insert([{ image_url: publicUrl, caption: captionInput.value }]);
 
-    fileInput.value = '';
-    captionInput.value = '';
-    uploadModal.style.display = 'none';
+    if (dbError) {
+      alert('Database save error: ' + dbError.message);
+    } else {
+      fileInput.value = '';
+      captionInput.value = '';
+      uploadModal.style.display = 'none';
+      alert('Success! Photo added.');
+    }
+
     uploadBtn.innerText = 'Upload Photo';
     uploadBtn.disabled = false;
     loadPhotos();
