@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -171,8 +171,8 @@
     <label for="photoInput">Select Photo *</label>
     <input type="file" id="photoInput" accept="image/*">
 
-    <label for="audioInput">Select Audio (Optional)</label>
-    <input type="file" id="audioInput" accept="audio/*">
+    <label for="audioUrlInput">Audio URL from Internet (Optional)</label>
+    <input type="url" id="audioUrlInput" placeholder="https://example.com/song.mp3">
 
     <textarea id="captionInput" placeholder="Your caption here..."></textarea>
     
@@ -243,11 +243,11 @@
 
   uploadBtn.onclick = async () => {
     const fileInput = document.getElementById('photoInput');
-    const audioInput = document.getElementById('audioInput');
+    const audioUrlInput = document.getElementById('audioUrlInput');
     const captionInput = document.getElementById('captionInput');
 
     const photoFile = fileInput.files[0];
-    const audioFile = audioInput.files[0];
+    const audioUrl = audioUrlInput.value.trim();
 
     if (!photoFile) return alert('Please pick a photo first!');
 
@@ -267,26 +267,10 @@
 
     const photoPublicUrl = `${SUPABASE_URL}/storage/v1/object/public/photos/${photoFileName}`;
 
-    // 2. Upload Audio if chosen
-    let audioPublicUrl = null;
-    if (audioFile) {
-      const audioFileName = `audio_${Date.now()}_${audioFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      const { error: audioError } = await supabaseClient.storage.from('photos').upload(audioFileName, audioFile);
-
-      if (audioError) {
-        alert('Audio upload error: ' + audioError.message);
-        uploadBtn.innerText = 'Upload Post';
-        uploadBtn.disabled = false;
-        return;
-      }
-
-      audioPublicUrl = `${SUPABASE_URL}/storage/v1/object/public/photos/${audioFileName}`;
-    }
-
-    // 3. Save to Database
+    // 2. Save Photo URL + External Audio URL to Database
     const { error: dbError } = await supabaseClient.from('posts').insert([{ 
       image_url: photoPublicUrl, 
-      audio_url: audioPublicUrl,
+      audio_url: audioUrl || null,
       caption: captionInput.value 
     }]);
 
@@ -294,7 +278,7 @@
       alert('Database save error: ' + dbError.message);
     } else {
       fileInput.value = '';
-      audioInput.value = '';
+      audioUrlInput.value = '';
       captionInput.value = '';
       uploadModal.style.display = 'none';
     }
